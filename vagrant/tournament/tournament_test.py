@@ -127,7 +127,7 @@ def testPairings():
 
 if __name__ == '__main__':
     testDeleteMatches()
-    testDelete()
+    '''testDelete()
     testCount()
     testRegister()
     testRegisterCountDelete()
@@ -135,5 +135,6 @@ if __name__ == '__main__':
     testReportMatches()
     testPairings()
     print "Success!  All tests pass!"
+    '''
 
 

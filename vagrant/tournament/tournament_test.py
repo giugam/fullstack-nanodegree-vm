@@ -129,8 +129,8 @@ if __name__ == '__main__':
     #print "Just checking! Work in progress!"
     testDeleteMatches()
     testDelete()
-    '''testCount()
-    testRegister()
+    testCount()
+    '''testRegister()
     testRegisterCountDelete()
     testStandingsBeforeMatches()
     testReportMatches()

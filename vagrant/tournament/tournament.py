@@ -31,6 +31,16 @@ def deletePlayers():
 
 def countPlayers():
     """Returns the number of players currently registered."""
+    conn=connect() 
+    c=conn.cursor() 
+    # Count the number of players
+    c.execute("SELECT count(*) FROM players;") 
+    # Retrieve the number of players, which is
+    # the first value of first and only row of the query result 
+    players_nr = c.fetchall()[0][0]
+    conn.close()    
+    # Return the number of players
+    return players_nr
 
 
 def registerPlayer(name):
@@ -83,5 +93,6 @@ def swissPairings():
         id2: the second player's unique id
         name2: the second player's name
     """
+countPlayers()
 
 

@@ -126,9 +126,10 @@ def testPairings():
 
 
 if __name__ == '__main__':
+    #print "Just checking! Work in progress!"
     testDeleteMatches()
-    '''testDelete()
-    testCount()
+    testDelete()
+    '''testCount()
     testRegister()
     testRegisterCountDelete()
     testStandingsBeforeMatches()

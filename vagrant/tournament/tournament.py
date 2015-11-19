@@ -4,7 +4,12 @@
 #
 
 import psycopg2
-
+# Import bleach for input sanitisation
+import bleach
+# Imported extensions to register typecaster as per psycopg2 docs
+#import psycopg2.extensions
+#psycopg2.extensions.register_type(psycopg2.extensions.UNICODE)
+#psycopg2.extensions.register_type(psycopg2.extensions.UNICODEARRAY)
 
 def connect():
     """Connect to the PostgreSQL database.  Returns a database connection."""
@@ -36,11 +41,11 @@ def countPlayers():
     # Count the number of players
     c.execute("SELECT count(*) FROM players;") 
     # Retrieve the number of players, which is
-    # the first value of first and only row of the query result 
-    players_nr = c.fetchall()[0][0]
+    # the first value of the first and only row of the result query 
+    total_players = c.fetchall()[0][0]
     conn.close()    
     # Return the number of players
-    return players_nr
+    return total_players
 
 
 def registerPlayer(name):
@@ -52,6 +57,15 @@ def registerPlayer(name):
     Args:
       name: the player's full name (need not be unique).
     """
+    conn=connect()
+    c=conn.cursor()
+    # Input Sanitization with Bleach
+    new_player = bleach.clean(name, strip = True)
+    # Insert 'new_player' into the table 'players'
+    c.execute("""INSERT INTO players (name) VALUES (%(str)s);""",
+      {'str': new_player})
+    conn.commit()
+    conn.close()
 
 
 def playerStandings():
@@ -67,7 +81,17 @@ def playerStandings():
         wins: the number of matches the player has won
         matches: the number of matches the player has played
     """
-
+    conn=connect()
+    c=conn.cursor()
+    ### In the select there might be MISSING clause to FILTER & ORDER players
+    c.execute("""SELECT * FROM player_standings;""")
+    results = c.fetchall();
+    player_standings = [(int(row[0]),
+                         str(row[1]),
+                         int(row[2]),
+                         int(row[3])) for row in results];
+    conn.close()
+    return player_standings
 
 def reportMatch(winner, loser):
     """Records the outcome of a single match between two players.
@@ -76,6 +100,7 @@ def reportMatch(winner, loser):
       winner:  the id number of the player who won
       loser:  the id number of the player who lost
     """
+    
  
  
 def swissPairings():
@@ -93,6 +118,5 @@ def swissPairings():
         id2: the second player's unique id
         name2: the second player's name
     """
-countPlayers()
 
 

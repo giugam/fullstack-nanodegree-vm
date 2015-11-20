@@ -56,8 +56,13 @@ INSERT INTO players (name) VALUES
 	('Giulio A.'),
 	('Chiara'),
 	('Stefano'),
-	('Samantha');
+	('Samantha'),
+	('Deepesh'),
+	('Neha'),
+	('Jeev'),
+	('Prat');
 --
+/*
 INSERT INTO matches (id1, name1, id2, name2, round, winner, loser) VALUES
 	(1,'Giulio',2,'Payal',1,2,1),
 	(3,'Marc',4,'Jo',1,3,4),
@@ -67,23 +72,9 @@ INSERT INTO matches (id1, name1, id2, name2, round, winner, loser) VALUES
 	(11,'Paolo',12,'Martina',1,12,11),
 	(13,'Giulio',14,'Chiara',1,13,14),
 	(15,'Stefano',16,'Samantha',1,16,15);
-
-
-/*
-CREATE VIEW winner_standing AS
-	SELECT players.id, players.name, matches.round,
-		matches.winner 
-	FROM players RIGHT JOIN matches
-	ON players.id = matches.winner 
-	ORDER BY matches.winner, players.id;
-
-CREATE VIEW loser_standing AS
-	SELECT players.id, players.name, 
-		matches.loser, matches.round
-	FROM players RIGHT JOIN matches
-	ON players.id = matches.loser 
-	ORDER BY matches.loser, players.id;
 */
+
+
 
 CREATE VIEW matches_won AS
     SELECT

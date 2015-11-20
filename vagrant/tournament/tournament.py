@@ -6,10 +6,8 @@
 import psycopg2
 # Import bleach for input sanitisation
 import bleach
-# Imported extensions to register typecaster as per psycopg2 docs
-#import psycopg2.extensions
-#psycopg2.extensions.register_type(psycopg2.extensions.UNICODE)
-#psycopg2.extensions.register_type(psycopg2.extensions.UNICODEARRAY)
+# Import random for the swissPairing function
+import random
 
 def connect():
     """Connect to the PostgreSQL database.  Returns a database connection."""
@@ -100,7 +98,60 @@ def reportMatch(winner, loser):
       winner:  the id number of the player who won
       loser:  the id number of the player who lost
     """
+    conn=connect()
+    c=conn.cursor()
+    # Extracting the data of winner and loser from player_standings
+    c.execute("""SELECT * FROM player_standings
+                    WHERE player_standings.id = %(id_winner)s
+                    OR player_standings.id = %(id_loser)s""",
+                {'id_winner': int(winner), 'id_loser':int(loser)})
+    current_standings = c.fetchall();
+
+    # THIS IF ELSE MIGHT PROBABLY BE REMOVED LATER ON
     
+    if current_standings[0][0] == winner:
+        # Keep track of which 'round' is played by taking into account
+        # the current number of matches being played by that player
+        current_round = current_standings[0][3] + 1;
+        # Insert the match result into the table 'matches'
+        c.execute("""INSERT INTO matches
+                                 (id1, name1, id2,
+                                 name2, round, winner, loser)
+                            VALUES
+                                 (%(id1)s, %(name1)s, %(id2)s,
+                                  %(name2)s, %(round)s, %(winner)s,
+                                  %(loser)s);""",
+                  {'id1': int(current_standings[0][0]),
+                   'name1': str(current_standings[0][1]),
+                   'id2': int(current_standings[1][0]),
+                   'name2': str(current_standings[1][1]),
+                   'round': int(current_round),
+                   'winner': int(winner),
+                   'loser': int(loser) 
+                  })
+    else:
+        current_round = current_standings[1][3] + 1;
+        c.execute("""INSERT INTO matches
+                                 (id1, name1,
+                                  id2, name2,
+                                  round, winner, loser)
+                             VALUES
+                                 (%(id1)s, %(name1)s,
+                                 %(id2)s, %(name2)s,
+                                 %(round)s, %(winner)s,
+                                 %(loser)s);""",
+                  {'id1': int(current_standings[0][0]),
+                   'name1': str(current_standings[0][1]),
+                   'id2': int(current_standings[1][0]),
+                   'name2': str(current_standings[1][1]),
+                   'round': int(current_round),
+                   'winner': int(winner),
+                   'loser': int(loser) 
+                  })
+    print('Current round: ',current_round)
+    print(current_standings)
+    conn.commit()
+    conn.close()
  
  
 def swissPairings():
@@ -118,5 +169,46 @@ def swissPairings():
         id2: the second player's unique id
         name2: the second player's name
     """
+    conn=connect()
+    c=conn.cursor()
+    # Determining the number of players 
+    players_nr = countPlayers() / 2;
+    # Pairing the winners
+    c.execute("""SELECT id,name FROM player_standings LIMIT (%(half_players)s);""",
+              {'half_players': players_nr})
+    first_group = c.fetchall();
+    #print('FIRST: ',first_group)
+    c.execute("""SELECT id,name FROM player_standings OFFSET (%(half_players)s);""",
+              {'half_players': players_nr})
+    second_group = c.fetchall();
+    #print('SECOND: ',second_group)
+    # Collecting the two group of player's id
+    id_first_group = [(int(row[0])) for row in first_group];
+    id_second_group = random.sample([int(row[0]) for row in second_group], players_nr);
+    #print('ID1: ',id_first_group)
+    #print('ID2: ',id_second_group)
+    winner_list = []
+    loser_list = []
+    steps = players_nr / 2;
+    pairs = []
+    for i in id_first_group:
+        winner_list.append(i)
+        for row in first_group:
+            if i == row[0]:
+                winner_list.append(str(row[1]))
+    # slicing the list into pair of players               
+    for i in range(1,steps+1):
+            pairs.append(tuple(winner_list[(i-1)*4:2*(i*2):1]))
+    
+    for i in id_second_group:
+        loser_list.append(i)
+        for row in second_group:
+            if i == row[0]:
+                loser_list.append(str(row[1]))
+                
+    for i in range(1,steps+1):
+        pairs.append(tuple(loser_list[(i-1)*4:2*(i*2):1]))
+    #print(pairs)
+    return pairs
 
 

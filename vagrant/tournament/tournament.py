@@ -1,95 +1,102 @@
 #!/usr/bin/env python
-# 
+#
 # tournament.py -- implementation of a Swiss-system tournament
 #
-
+# Import psycopg2 to connect to a PostgreSQL database
 import psycopg2
 # Import bleach for input sanitisation
 import bleach
-# Import random for the swissPairing function
+# Import random for the swissPairings() function
 import random
+# Import math
+import math
+
 
 def connect():
-    """Connect to the PostgreSQL database.  Returns a database connection."""
+    """Connect to the PostgreSQL database.
+       Returns a database connection."""
     return psycopg2.connect("dbname=tournament")
 
 
 def deleteMatches():
     """Remove all the match records from the database."""
-    conn=connect() 
-    c=conn.cursor() 
-    c.execute("DELETE FROM matches;") 
-    conn.commit() 
+    conn = connect()
+    c = conn.cursor()
+    c.execute("DELETE FROM matches;")
+    conn.commit()
     conn.close()
 
 
 def deletePlayers():
     """Remove all the player records from the database."""
-    conn=connect() 
-    c=conn.cursor() 
-    c.execute("DELETE FROM players;") 
-    conn.commit() 
+    conn = connect()
+    c = conn.cursor()
+    c.execute("DELETE FROM players;")
+    conn.commit()
     conn.close()
 
 
 def countPlayers():
     """Returns the number of players currently registered."""
-    conn=connect() 
-    c=conn.cursor() 
+    conn = connect()
+    c = conn.cursor()
     # Count the number of players
-    c.execute("SELECT count(*) FROM players;") 
-    # Retrieve the number of players, which is
-    # the first value of the first and only row of the result query 
+    c.execute("SELECT count(*) FROM players;")
+    # Retrieve the number of players
     total_players = c.fetchall()[0][0]
-    conn.close()    
+    conn.close()
     # Return the number of players
     return total_players
 
 
 def registerPlayer(name):
     """Adds a player to the tournament database.
-  
-    The database assigns a unique serial id number for the player.  (This
-    should be handled by your SQL database schema, not in your Python code.)
-  
+
+    The database assigns a unique serial id number for the player.
+    (This should be handled by your SQL database schema, not in
+    your Python code.)
+
     Args:
       name: the player's full name (need not be unique).
     """
-    conn=connect()
-    c=conn.cursor()
-    # Input Sanitization with Bleach
-    new_player = bleach.clean(name, strip = True)
-    # Insert 'new_player' into the table 'players'
+    conn = connect()
+    c = conn.cursor()
+    # Input sanitization
+    new_player = bleach.clean(name, strip=True)
+    # Register the new player
     c.execute("""INSERT INTO players (name) VALUES (%(str)s);""",
-      {'str': new_player})
+              {'str': new_player})
     conn.commit()
     conn.close()
 
 
 def playerStandings():
-    """Returns a list of the players and their win records, sorted by wins.
+    """Returns a list of the players and their win records,
+       sorted by wins.
 
-    The first entry in the list should be the player in first place, or a player
-    tied for first place if there is currently a tie.
+    The first entry in the list should be the player in first place,
+    or a player tied for first place if there is currently a tie.
 
     Returns:
-      A list of tuples, each of which contains (id, name, wins, matches):
+      A list of tuples, each of which contains (id,name,wins,matches):
         id: the player's unique id (assigned by the database)
         name: the player's full name (as registered)
         wins: the number of matches the player has won
         matches: the number of matches the player has played
     """
-    conn=connect()
-    c=conn.cursor()
-    ### In the select there might be MISSING clause to FILTER & ORDER players
+    conn = connect()
+    c = conn.cursor()
+    # Extracting the players from the player_standings VIEW in
+    # the database
     c.execute("""SELECT * FROM player_standings;""")
-    results = c.fetchall();
+    results = c.fetchall()
     player_standings = [(int(row[0]),
                          str(row[1]),
                          int(row[2]),
-                         int(row[3])) for row in results];
+                         int(row[3])) for row in results]
     conn.close()
     return player_standings
+
 
 def reportMatch(winner, loser):
     """Records the outcome of a single match between two players.
@@ -98,70 +105,156 @@ def reportMatch(winner, loser):
       winner:  the id number of the player who won
       loser:  the id number of the player who lost
     """
-    conn=connect()
-    c=conn.cursor()
-    # Extracting the data of winner and loser from player_standings
+    conn = connect()
+    c = conn.cursor()
+    # Passing the parameters to extract the winner and loser
+    # from the player_standings VIEW in the database
     c.execute("""SELECT * FROM player_standings
-                    WHERE player_standings.id = %(id_winner)s
-                    OR player_standings.id = %(id_loser)s""",
-                {'id_winner': int(winner), 'id_loser':int(loser)})
-    current_standings = c.fetchall();
-
-    # THIS IF ELSE MIGHT PROBABLY BE REMOVED LATER ON
-    
-    if current_standings[0][0] == winner:
-        # Keep track of which 'round' is played by taking into account
-        # the current number of matches being played by that player
-        current_round = current_standings[0][3] + 1;
-        # Insert the match result into the table 'matches'
-        c.execute("""INSERT INTO matches
-                                 (id1, name1, id2,
-                                 name2, round, winner, loser)
-                            VALUES
-                                 (%(id1)s, %(name1)s, %(id2)s,
-                                  %(name2)s, %(round)s, %(winner)s,
-                                  %(loser)s);""",
-                  {'id1': int(current_standings[0][0]),
-                   'name1': str(current_standings[0][1]),
-                   'id2': int(current_standings[1][0]),
-                   'name2': str(current_standings[1][1]),
-                   'round': int(current_round),
-                   'winner': int(winner),
-                   'loser': int(loser) 
-                  })
-    else:
-        current_round = current_standings[1][3] + 1;
-        c.execute("""INSERT INTO matches
-                                 (id1, name1,
-                                  id2, name2,
-                                  round, winner, loser)
-                             VALUES
-                                 (%(id1)s, %(name1)s,
-                                 %(id2)s, %(name2)s,
-                                 %(round)s, %(winner)s,
-                                 %(loser)s);""",
-                  {'id1': int(current_standings[0][0]),
-                   'name1': str(current_standings[0][1]),
-                   'id2': int(current_standings[1][0]),
-                   'name2': str(current_standings[1][1]),
-                   'round': int(current_round),
-                   'winner': int(winner),
-                   'loser': int(loser) 
-                  })
-    print('Current round: ',current_round)
-    print(current_standings)
+                 WHERE (player_standings.id = %(id_winner)s
+                 OR player_standings.id = %(id_loser)s);""",
+              {'id_winner': int(winner), 'id_loser': int(loser)})
+    current_standings = c.fetchall()
+    # Keep track of which 'round' is played by taking into account
+    # the current number of matches being played by that player
+    current_round = current_standings[0][3] + 1
+    # Insert the match result into the table 'matches'
+    c.execute("""INSERT INTO matches
+                             (id1, name1, id2,
+                             name2, round, winner, loser)
+                        VALUES
+                             (%(id1)s, %(name1)s, %(id2)s,
+                              %(name2)s, %(round)s, %(winner)s,
+                              %(loser)s);""",
+              {'id1': bleach.clean(int(current_standings[0][0]),
+                                   strip=True),
+               'name1': bleach.clean(str(current_standings[0][1]),
+                                     strip=True),
+               'id2': bleach.clean(int(current_standings[1][0]),
+                                   strip=True),
+               'name2': bleach.clean(str(current_standings[1][1]),
+                                     strip=True),
+               'round': bleach.clean(int(current_round),
+                                     strip=True),
+               'winner': bleach.clean(int(winner),
+                                      strip=True),
+               'loser': bleach.clean(int(loser),
+                                     strip=True)})
     conn.commit()
     conn.close()
- 
- 
+
+
+def reportSkipRound(player):
+    """ Record the automatic win of a randomly selected player
+
+    The selected player will receive a BYE flag, meaning it will
+    skip that round, and it will also automatically receive a win.
+
+     Args:
+         player: the id of the randomly selected player
+    """
+    conn = connect()
+    c = conn.cursor()
+    # Extracting the data of player that will skip the round
+    # from the table 'player_standings'
+    c.execute("""SELECT * FROM player_standings
+                 WHERE player_standings.id = %(id_skip_player)s""",
+              {'id_skip_player': int(player)})
+    plr_standings = c.fetchall()
+    # Keep track of which 'round' is played by taking into account
+    # the current number of matches being played by that player
+    current_round = plr_standings[0][3] + 1
+    # Record the automatic win to skip this round
+    c.execute("""INSERT INTO matches
+                 (id1, name1, id2, name2,
+                 round, winner, loser, bye)
+                 VALUES
+                     (%(id1)s, %(name1)s, %(id2)s,
+                     %(name2)s, %(round)s, %(winner)s,
+                     %(loser)s, %(skip_round)s);""",
+              {'id1': bleach.clean(int(plr_standings[0][0]),
+                                   strip=True),
+               'name1': bleach.clean(str(plr_standings[0][1]),
+                                     strip=True),
+               'id2': 0,
+               'name2': '-',
+               'round': bleach.clean(int(current_round),
+                                     strip=True),
+               'winner': bleach.clean(int(player),
+                                      strip=True),
+               'loser': 0,
+               'skip_round': 1})
+    conn.commit()
+    conn.close()
+
+
+def selectWhoSkipRound():
+    """ Select a random player to skip one round
+
+    For the first round of matches, the player wil be selected
+    randomly amongst the registered players
+    In the following rounds the player will be selected amongst
+    the players who have never received a BYE flag
+
+    Returns: The player id that will skip that round
+    """
+    conn = connect()
+    c = conn.cursor()
+    # Select the players which skipped a round
+    # from the 'matches_bye' VIEW
+    c.execute("""SELECT * FROM matches_bye;""")
+    skip_player_list = c.fetchall()
+    # Select all the players from the player_standings VIEW
+    c.execute("""SELECT * FROM player_standings;""")
+    all_players = c.fetchall()
+    # If the number of players is odd and it's the first round
+    if countPlayers() % 2 != 0 and len(skip_player_list) == 0:
+        # Randomly selects one of the player's id which will
+        # skip one round from all available players
+        id_extra_player = random.choice([(int(row[0]))
+                                         for row in all_players])
+    # If the number of players is odd and there have been players
+    # who have received a BYE flag
+    elif countPlayers() % 2 != 0 and len(skip_player_list) != 0:
+        # Select all the players from the player_standings VIEW
+        # who have already won a match
+        c.execute("""SELECT * FROM player_standings
+                     WHERE wins >= 1;""")
+        all_players = c.fetchall()
+        # Populate a filtered_players list that will be filtered
+        # in order to remove players who have skipped a round
+        filtered_players = [(int(row[0])) for row in all_players]
+        # Remove players from the filtered_players list by checking
+        # if any players in it have skipped a round
+        for skip_player in skip_player_list:
+            for player_id in all_players:
+                if player_id[0] == skip_player[0]:
+                    # Remove players who have skipped
+                    filtered_players.remove(player_id[0])
+        # Select the players that will skip this round amongst those
+        # players in the previously filtered list
+        id_extra_player = random.choice([(int(player))
+                                         for player in filtered_players])
+    conn.close()
+    return id_extra_player
+
+
 def swissPairings():
     """Returns a list of pairs of players for the next round of a match.
-  
-    Assuming that there are an even number of players registered, each player
-    appears exactly once in the pairings.  Each player is paired with another
-    player with an equal or nearly-equal win record, that is, a player adjacent
-    to him or her in the standings.
-  
+
+    If there are an even number of players registered, each player
+    appears exactly once in the pairings.  Each player is paired
+    with another player with an equal or nearly-equal win record,
+    that is, a player adjacent to him or her in the standings.
+
+    Additional implementations:
+    If there is an odd number of registered players, another
+    function selectWhoSkipRound() will determine the player id that
+    will skip the round, and the remaining players will paired as
+    previously described.
+
+    The swissPairings() function also prevents players from playing
+    twice against each other
+
     Returns:
       A list of tuples, each of which contains (id1, name1, id2, name2)
         id1: the first player's unique id
@@ -169,46 +262,290 @@ def swissPairings():
         id2: the second player's unique id
         name2: the second player's name
     """
-    conn=connect()
-    c=conn.cursor()
-    # Determining the number of players 
-    players_nr = countPlayers() / 2;
-    # Pairing the winners
-    c.execute("""SELECT id,name FROM player_standings LIMIT (%(half_players)s);""",
-              {'half_players': players_nr})
-    first_group = c.fetchall();
-    #print('FIRST: ',first_group)
-    c.execute("""SELECT id,name FROM player_standings OFFSET (%(half_players)s);""",
-              {'half_players': players_nr})
-    second_group = c.fetchall();
-    #print('SECOND: ',second_group)
-    # Collecting the two group of player's id
-    id_first_group = [(int(row[0])) for row in first_group];
-    id_second_group = random.sample([int(row[0]) for row in second_group], players_nr);
-    #print('ID1: ',id_first_group)
-    #print('ID2: ',id_second_group)
-    winner_list = []
-    loser_list = []
-    steps = players_nr / 2;
-    pairs = []
-    for i in id_first_group:
-        winner_list.append(i)
-        for row in first_group:
-            if i == row[0]:
-                winner_list.append(str(row[1]))
-    # slicing the list into pair of players               
-    for i in range(1,steps+1):
-            pairs.append(tuple(winner_list[(i-1)*4:2*(i*2):1]))
+    conn = connect()
+    c = conn.cursor()
+    # Determine if the number of players is even or odd
+    if countPlayers() % 2 == 0:
+        # The number of registered players is even,
+        # therefore the players will be split in two groups
+        # in which each group will contain half of the players.
+        #
+        # If the two sub groups contain an odd number of players,
+        # reassign one player in order to have an even number of
+        # players in both groups
+        if (countPlayers() / 2) % 2 != 0:
+            top_group_nr = countPlayers() / 2 + 1
+            bottom_group_nr = countPlayers() / 2 - 1
+        else:
+            top_group_nr = bottom_group_nr = countPlayers() / 2
+        # Select the top half of the players present in the
+        # player_standings VIEW by passing the parameter 'half_players_nr'
+        c.execute("""SELECT id,name FROM player_standings
+                     LIMIT (%(top_half)s);""",
+                  {'top_half': top_group_nr})
+        first_group = c.fetchall()
+        # Select the remaining bottom half of the players present in the
+        # player_standings VIEW by passing the parameter 'half_players_nr'
+        c.execute("""SELECT id,name FROM player_standings
+                     OFFSET (%(bottom_half)s);""",
+                  {'bottom_half': bottom_group_nr})
+        second_group = c.fetchall()
+    else:
+        # The number of registered players is odd,
+        # therefore one player will receive a BYE flag
+        # which will take this player to the next round with an auto
+        # assigned win. All the remaining players will be split
+        # into two groups as before.
+        half_players_nr = (countPlayers() - 1) / 2
+        # If the remaining players are odd, reassing one player
+        # in order to have an even number of players in both groups
+        if half_players_nr % 2 != 0:
+            # Since one player will skip a round and it will receive
+            # a an automatic win, the top group will be reduced to
+            # equalise the players distribution
+            top_group_nr = countPlayers() / 2 - 1
+            bottom_group_nr = countPlayers() / 2 + 1
+        else:
+            top_group_nr = bottom_group_nr = countPlayers() / 2
+        # Determine the id of the player that will skip this round
+        id_extra_player = selectWhoSkipRound()
+        # Select the players according to their standing but excluding
+        # the player that will skip this round
+        c.execute("""SELECT id,name FROM player_standings
+                     WHERE id != (%(id_removed)s);""",
+                  {'id_removed': id_extra_player})
+        filtered_list = c.fetchall()
+        # Assign this player a BYE flag for this round, as well as
+        # an automatic win.
+        reportSkipRound(id_extra_player)
+        # Assign the players in the two separate lists
+        first_group = filtered_list[0:top_group_nr:1]
+        second_group = filtered_list[
+                       top_group_nr:top_group_nr+bottom_group_nr:1]
+
+    # Once the players are divided into two groups, extract the
+    # player's id contained in the two list 'first_group'and
+    # 'second_group'
+    id_first_group = [int(row[0]) for row in first_group]
+    id_second_group = [int(row[0]) for row in second_group]
+    # Create two list of matches by pairing two player's id sequentially,
+    # for each of the players that are present in both lists
+    first_pairs_matched = []
+    for i in range(1, top_group_nr / 2 + 1):
+        first_pairs_matched.append(
+                            tuple(id_first_group[(i-1)*2:(i*2):1]))
+    second_pairs_matched = []
+    for i in range(1, bottom_group_nr / 2 + 1):
+        second_pairs_matched.append(
+                             tuple(id_second_group[(i-1)*2:(i*2):1]))
+
+    # Select the matches that have already being played, excluding
+    # the cases where a player skipped around
+    c.execute("""SELECT id1,id2 FROM matches WHERE bye = 0;""")
+    matches_played = c.fetchall()
+    # Define empty lists that will be used to prevent rematching
+    # between players, and that will also be used to reconstruct the
+    # final list of tuples:
+    #
+    # Define the final list of tuples [(id1,name1),(id2,name2),..]
+    pairs_matched = []
+    # Define the list that will contain the matches amongst players
+    # present in the 'first_group'
+    pairs_matched_first = []
+    # Define the list that will contain the matches amongst players
+    # present in the 'second_group'
+    pairs_matched_second = []
+    # Define a duplicate list that will contain the id of the players
+    # present in the 'first_group'
+    match_item_first = []
+    # Define a duplicate list that will contain the id of the players
+    # present in the 'first_group'
+    match_item_second = []
+
+    # Reassign the players id in the first group to a temporary list
+    match_item_f = [(int(row[0])) for row in first_group]
+
+    # Prevent rematching of same players by swapping adjacent
+    # players in order to match players with nearly equal
+    # ranking (wins)
+    #
+    # For example:
+    # if (i,j) and (k,l) are two matches and (k,l) is a rematch
+    # then swap players j and k so that the new pairing is:
+    # (i,k) and (j,l)
     
-    for i in id_second_group:
-        loser_list.append(i)
+    # Define the condition to interrupt the loop
+    rematch_found = True
+    # Check continuously the list of matches against the list of
+    # matches already played
+    while rematch_found != False:
+        rematch_found = False
+        for match in first_pairs_matched:
+            p = match[0]
+            q = match[1]
+            inverse = (q,p)
+            if match in matches_played:
+                rematch_found = True
+                # Retrieve index of the match already played
+                i = first_pairs_matched.index(match)
+                if i == 0:
+                    # Retrieve indexes of players to swap
+                    # from the list
+                    j = match_item_f.index(first_pairs_matched[0][1])
+                    k = match_item_f.index(first_pairs_matched[1][0])
+                else:
+                    # Retrieve indexes of players to swap
+                    # from the list
+                    j = match_item_f.index(first_pairs_matched[i-1][1])
+                    k = match_item_f.index(first_pairs_matched[i][0])
+                # Retrieve players id
+                val_j = match_item_f[j]
+                val_k = match_item_f[k]
+                # Swap values k -> j and j -> k
+                match_item_f[j] = val_k
+                match_item_f[k] = val_j
+            if inverse in matches_played:
+                rematch_found = True
+                # Retrieve index of the match already played
+                i = first_pairs_matched.index(match)
+                if i == 0:
+                    # Retrieve indexes of players to swap
+                    # from the list
+                    j = match_item_f.index(first_pairs_matched[0][1])
+                    k = match_item_f.index(first_pairs_matched[1][0])
+                else:
+                    # Retrieve indexes of players to swap
+                    # from the list
+                    j = match_item_f.index(first_pairs_matched[i-1][1])
+                    k = match_item_f.index(first_pairs_matched[i][0])
+                # Retrieve players id
+                val_j = match_item_f[j]
+                val_k = match_item_f[k]
+                # Swap values k -> j and j -> k
+                match_item_f[j] = val_k
+                match_item_f[k] = val_j
+
+        if rematch_found == True:
+            # Reconstruct the matches
+            first_pairs_matched = []
+            for i in range(1, top_group_nr / 2 + 1):
+                first_pairs_matched.append(
+                                    tuple(match_item_f[(i-1)*2:(i*2):1]))
+            # Return checking if a match is present in the new list
+            continue
+        # If a rematch is NOT found exit the loop
+        else:
+            break
+
+    # Construct the matches list for the first group of players
+    # having the form: [(id1,name1,id2,name2,...)]
+    for j in match_item_f:
+        match_item_first.append(j)
+        for row in first_group:
+            if j == row[0]:
+                match_item_first.append(str(row[1]))
+    # Slice the list into tuples having the form:
+    # [(id1,name1,id2,name2),(id3,name3,id4,name4),...]
+    for i in range(1, top_group_nr / 2 + 1):
+        pairs_matched_first.append(
+                            tuple(match_item_first[(i-1)*4:2*(i*2):1]))
+
+    # Repeat the same steps described above for the
+    # remaining players present in the second group
+
+    # Reassign the players id in the second group to a temporary list
+    match_item_s = [(int(row[0])) for row in second_group]
+
+    # Prevent rematching of same players by swapping adjacent
+    # players in order to match players with nearly equal
+    # ranking (wins)
+
+    # Define the condition to interrupt the loop
+    rematch_found = True
+    # Check continuously the list of matches against the list of
+    # matches already played
+    while rematch_found != False:
+        rematch_found = False
+        for match in second_pairs_matched:
+            # Defining the inverse of 'match' by swapping the
+            # player's id.
+            p = match[0]
+            q = match[1]
+            inverse = (q,p)
+            # Check for a possible rematch
+            if match in matches_played:
+                rematch_found = True
+                # retrieve index of the match already played
+                i = second_pairs_matched.index(match)
+                if i == 0:
+                    # retrieve indexes of players to swap
+                    # from the list
+                    j = match_item_s.index(second_pairs_matched[0][1])
+                    k = match_item_s.index(second_pairs_matched[1][0])
+                else:
+                    # retrieve indexes of players to swap
+                    # from the list
+                    j = match_item_s.index(second_pairs_matched[i-1][1])
+                    k = match_item_s.index(second_pairs_matched[i][0])
+                # retrieve players id
+                val_j = match_item_s[j]
+                val_k = match_item_s[k]
+                # swap values
+                match_item_s[j] = val_k
+                match_item_s[k] = val_j
+            # Check for a possible rematch having the same players
+            # but swapping the position of their id.
+            # (for example: if 'match' is (p,q) -> 'inverse' is (q,p))
+            if inverse in matches_played:
+                rematch_found = True
+                # retrieve index of the match already played
+                i = second_pairs_matched.index(match)
+                if i == 0:
+                    # retrieve indexes of players to swap
+                    # from the list
+                    j = match_item_s.index(second_pairs_matched[0][1])
+                    k = match_item_s.index(second_pairs_matched[1][0])
+                else:
+                    # retrieve indexes of players to swap
+                    # from the list
+                    j = match_item_s.index(second_pairs_matched[i-1][1])
+                    k = match_item_s.index(second_pairs_matched[i][0])
+                # retrieve players id
+                val_j = match_item_s[j]
+                val_k = match_item_s[k]
+                # swap values
+                match_item_s[j] = val_k
+                match_item_s[k] = val_j
+
+        if rematch_found == True:
+            # Reconstruct the matches list
+            second_pairs_matched = []
+            for i in range(1, bottom_group_nr / 2 + 1):
+                second_pairs_matched.append(
+                                     tuple(match_item_s[(i-1)*2:(i*2):1]))
+            # Continue checking for a rematch in the original list or
+            # in the rearranged list
+            continue
+        # If a rematch is NOT found exit the loop
+        else:
+            break
+
+    # Construct the matches list having the form:
+    # [(id1,name1,id2,name2,...)]
+    for j in match_item_s:
+        match_item_second.append(j)
         for row in second_group:
-            if i == row[0]:
-                loser_list.append(str(row[1]))
-                
-    for i in range(1,steps+1):
-        pairs.append(tuple(loser_list[(i-1)*4:2*(i*2):1]))
-    #print(pairs)
-    return pairs
+            if j == row[0]:
+                match_item_second.append(str(row[1]))
+    # Slice the list into tuples having the form:
+    # [(id1,name1,id2,name2),(id3,name3,id4,name4),...]
+    for i in range(1, bottom_group_nr / 2 + 1):
+        pairs_matched_second.append(
+                             tuple(match_item_second[(i-1)*4:2*(i*2):1]))
 
+    # Join the lists into the final list of tuples
+    pairs_matched_first.extend(pairs_matched_second)
+    pairs_matched.extend(pairs_matched_first)
 
+    conn.close()
+    return pairs_matched

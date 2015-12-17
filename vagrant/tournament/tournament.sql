@@ -6,19 +6,30 @@
 -- You can write comments in this file by starting them with two dashes, like
 -- these lines here.
 
--- Before creating the table structure we check if these exist
--- if these exists, we delete them
+-- Before creating the database, check if it exsists,
+-- if the database exists delete it.
+
+DROP DATABASE IF EXISTS tournament;
+
+-- Create the database ' tournament'
+
+CREATE DATABASE tournament;
+
+-- Connect to the database and run this file
+\c tournament;
+-- Before creating the table structure, check if these exist,
+-- if these tables already exist delete them, as well as deleting
+-- the views which depends on the tables.
 DROP TABLE IF EXISTS players CASCADE;
 DROP TABLE IF EXISTS matches CASCADE;
-DROP TABLE IF EXISTS standings CASCADE;
--- Create the 'players' table structure
+-- Define the 'players' table structure
 -- This table stores the registered name of a player
--- and it assign each player a unique ID.
+-- and it assigns each player a unique ID (primary key).
 CREATE TABLE players (
 	name TEXT, 
-	reg_datetime TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+	-- reg_datetime TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 	id SERIAL PRIMARY KEY);
--- Create the 'matches' table structure 
+-- Define the 'matches' table structure 
 -- This table stores the matches and results between two players
 CREATE TABLE matches (
 	id1 INTEGER,
@@ -28,54 +39,11 @@ CREATE TABLE matches (
 	round INTEGER,
 	winner INTEGER,
 	loser INTEGER,
-	match_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-	id_match SERIAL);
--- Create the 'standings' table structure
--- This table generates a view
-CREATE TABLE standings (
-	id INTEGER REFERENCES players,
-	name TEXT,
-	wins INTEGER,
-	matches INTEGER);
-
--- Insert Players into players table
-
-INSERT INTO players (name) VALUES
-	('Giulio G.'),
-	('Payal'),
-	('Marc'),
-	('Jo'),
-	('Gioia'),
-	('Fede'),
-	('Bhanu'),
-	('Rupa'),
-	('Terri'),
-	('Cristina'),
-	('Paolo'),
-	('Martina'),
-	('Giulio A.'),
-	('Chiara'),
-	('Stefano'),
-	('Samantha'),
-	('Deepesh'),
-	('Neha'),
-	('Jeev'),
-	('Prat');
---
-/*
-INSERT INTO matches (id1, name1, id2, name2, round, winner, loser) VALUES
-	(1,'Giulio',2,'Payal',1,2,1),
-	(3,'Marc',4,'Jo',1,3,4),
-	(5,'Gioia',6,'Fede',1,6,5),
-	(7,'Bhanu',8,'Rupa',1,7,8),
-	(9,'Terri',10,'Cristina',1,9,10),
-	(11,'Paolo',12,'Martina',1,12,11),
-	(13,'Giulio',14,'Chiara',1,13,14),
-	(15,'Stefano',16,'Samantha',1,16,15);
-*/
-
-
-
+	bye INTEGER DEFAULT 0,
+	id_match SERIAL PRIMARY KEY);
+-- Define the 'matches_won' view 
+-- This view lists the players by counting their wins.
+-- The players are ordered by their wins in decreasing order.
 CREATE VIEW matches_won AS
     SELECT
     	players.id, 
@@ -86,8 +54,34 @@ CREATE VIEW matches_won AS
     WHERE 
     	players.id = matches.winner
     GROUP BY 
-    	players.id;
-
+    	players.id
+    ORDER BY
+    	mwon DESC;
+-- Define the 'matches_bye' view 
+-- This view lists the players by counting their respective
+-- BYE flags received when these players have skipped a round.
+-- The players are ordered by the number of BYE received in a
+-- decreasing order.
+CREATE VIEW matches_bye AS
+	SELECT 
+		players.id,
+		players.name,
+		Count(matches.bye) AS mbye
+	FROM 
+		players, matches
+	WHERE
+		players.id = matches.winner 
+	AND 
+		matches.bye = 1
+	GROUP BY
+		players.id
+	ORDER BY
+		mbye DESC;
+-- Define the 'matches_bye' view 
+-- This view lists the players by counting their respective
+-- matches played.
+-- The players are ordered by their matches played in a 
+-- decreasing order;
 CREATE VIEW matches_played AS
     SELECT 
     	players.id,
@@ -104,8 +98,13 @@ CREATE VIEW matches_played AS
     	players.id = matches.winner
     OR 
     	players.id = matches.loser
-    GROUP BY players.id;
-
+    GROUP BY players.id
+    ORDER BY 
+    	mplayed DESC;
+-- Define the 'player_standings' view 
+-- This view lists the players providing the players id, name, 
+-- the number of wins and the number of matches played, and the
+-- players are ordered by their win in a decreasing order.
 CREATE VIEW player_standings AS
     SELECT
         matches_played.id,
@@ -119,4 +118,13 @@ CREATE VIEW player_standings AS
     ON
         matches_played.id = matches_won.id OR mwon = 0
     ORDER BY
-        wins desc;
+        wins DESC;
+-- Define the 'rematches_check' view
+-- This view lists the registered matches between players
+-- showing how many matches 
+CREATE VIEW rematches_check AS
+	SELECT 
+		id1, id2, count(id_match) as counter 
+	FROM
+		matches 
+	GROUP BY id1, id2;

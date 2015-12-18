@@ -164,6 +164,9 @@ def reportSkipRound(player):
     # the current number of matches being played by that player
     current_round = plr_standings[0][3] + 1
     # Record the automatic win to skip this round
+    #
+    # The data of the player that will skip the round will be used
+    # also for the remaining fields, to ensure database integrity
     c.execute("""INSERT INTO matches
                  (id1, name1, id2, name2,
                  round, winner, loser, bye)
@@ -175,13 +178,16 @@ def reportSkipRound(player):
                                    strip=True),
                'name1': bleach.clean(str(plr_standings[0][1]),
                                      strip=True),
-               'id2': 0,
-               'name2': '-',
+               'id2': bleach.clean(int(plr_standings[0][0]),
+                                   strip=True),
+               'name2': bleach.clean(str(plr_standings[0][1]),
+                                     strip=True),
                'round': bleach.clean(int(current_round),
                                      strip=True),
                'winner': bleach.clean(int(player),
                                       strip=True),
-               'loser': 0,
+               'loser': bleach.clean(int(player),
+                                      strip=True),
                'skip_round': 1})
     conn.commit()
     conn.close()

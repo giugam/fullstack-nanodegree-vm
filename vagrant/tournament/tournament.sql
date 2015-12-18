@@ -9,7 +9,15 @@
 -- Before creating the database, check if it exsists,
 -- if the database exists delete it.
 
-DROP DATABASE IF EXISTS tournament;
+-- Drop all connections
+-- More info at: http://stackoverflow.com/questions/5408156
+SELECT pg_terminate_backend(pg_stat_activity.pid)
+FROM pg_stat_activity
+WHERE pg_stat_activity.datname = 'tournament'
+  AND pid <> pg_backend_pid();
+
+-- Drop database
+DROP DATABASE tournament;
 
 -- Create the database ' tournament'
 
@@ -26,19 +34,22 @@ DROP TABLE IF EXISTS matches CASCADE;
 -- This table stores the registered name of a player
 -- and it assigns each player a unique ID (primary key).
 CREATE TABLE players (
-	name TEXT, 
+    -- Require the player's name when it is registered
+	name TEXT NOT NULL, 
 	-- reg_datetime TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 	id SERIAL PRIMARY KEY);
 -- Define the 'matches' table structure 
 -- This table stores the matches and results between two players
 CREATE TABLE matches (
-	id1 INTEGER,
+    -- Reference (FKEYS) winner/loser to the player's id
+	id1 INTEGER REFERENCES players (id),
 	name1 TEXT,
-	id2 INTEGER,
-	name2 TEXT,
+	id2 INTEGER REFERENCES players (id),
+    name2 TEXT,
 	round INTEGER,
-	winner INTEGER,
-	loser INTEGER,
+    -- Reference (FKEYS) winner/loser to the player's id
+	winner INTEGER REFERENCES players (id),
+	loser INTEGER REFERENCES players (id),
 	bye INTEGER DEFAULT 0,
 	id_match SERIAL PRIMARY KEY);
 -- Define the 'matches_won' view 

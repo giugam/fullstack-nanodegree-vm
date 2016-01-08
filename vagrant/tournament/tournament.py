@@ -1,7 +1,33 @@
 #!/usr/bin/env python
 #
-# tournament.py -- implementation of a Swiss-system tournament
+# tournament.py -- Implementation of a Swiss-system tournament
 #
+# Title
+# -----
+# Project 2: Tournament result
+# Full Stack Web Developer Nanodegree - Udacity
+#
+# Project Description
+# -------------------
+# The project implement a swiss-system tournament between a number
+# of registered players. The tournament supports any number of players
+# (even or odd) and it's designed to prevent rematches between players.
+# This project does not include a front end.
+#
+# Module Specification
+# ---------------------
+# This module defines the functions needed to implement a single
+# swiss-system tournament and make use of a PostgreSql database.
+#
+# Author
+# ------
+# Giulio Gambardella
+#
+# Date
+# ----
+# 12.12.2015
+
+
 # Import psycopg2 to connect to a PostgreSQL database
 import psycopg2
 # Import bleach for input sanitisation
@@ -12,39 +38,43 @@ import random
 import math
 
 
-def connect():
-    """Connect to the PostgreSQL database.
-       Returns a database connection."""
-    return psycopg2.connect("dbname=tournament")
+def connect(database_name="tournament"):
+    """Connect to the database """
+    try:
+        db = psycopg2.connect("dbname={}".format(database_name))
+        cursor = db.cursor()
+        return db, cursor
+    except:
+        print("There was an error connecting to the database")
 
 
 def deleteMatches():
     """Remove all the match records from the database."""
-    conn = connect()
-    c = conn.cursor()
-    c.execute("DELETE FROM matches;")
-    conn.commit()
-    conn.close()
+    db, cursor = connect()
+    query = "DELETE FROM matches;"
+    cursor.execute(query)
+    db.commit()
+    db.close()
 
 
 def deletePlayers():
     """Remove all the player records from the database."""
-    conn = connect()
-    c = conn.cursor()
-    c.execute("DELETE FROM players;")
-    conn.commit()
-    conn.close()
+    db, cursor = connect()
+    query = "DELETE FROM players;"
+    cursor.execute(query)
+    db.commit()
+    db.close()
 
 
 def countPlayers():
     """Returns the number of players currently registered."""
-    conn = connect()
-    c = conn.cursor()
+    db, cursor = connect()
     # Count the number of players
-    c.execute("SELECT count(*) FROM players;")
+    query = "SELECT count(*) FROM players;"
+    cursor.execute(query)
     # Retrieve the number of players
-    total_players = c.fetchall()[0][0]
-    conn.close()
+    total_players = cursor.fetchone()[0]
+    db.close()
     # Return the number of players
     return total_players
 
@@ -59,15 +89,15 @@ def registerPlayer(name):
     Args:
       name: the player's full name (need not be unique).
     """
-    conn = connect()
-    c = conn.cursor()
+    db, cursor = connect()
     # Input sanitization
     new_player = bleach.clean(name, strip=True)
     # Register the new player
-    c.execute("""INSERT INTO players (name) VALUES (%(str)s);""",
-              {'str': new_player})
-    conn.commit()
-    conn.close()
+    query = "INSERT INTO players (name) VALUES (%s);"
+    parameter = (new_player,)
+    cursor.execute(query, parameter)
+    db.commit()
+    db.close()
 
 
 def playerStandings():
@@ -84,17 +114,17 @@ def playerStandings():
         wins: the number of matches the player has won
         matches: the number of matches the player has played
     """
-    conn = connect()
-    c = conn.cursor()
+    db, cursor = connect()
     # Extracting the players from the player_standings VIEW in
     # the database
-    c.execute("""SELECT * FROM player_standings;""")
-    results = c.fetchall()
+    query = "SELECT * FROM player_standings;"
+    cursor.execute(query)
+    results = cursor.fetchall()
     player_standings = [(int(row[0]),
                          str(row[1]),
                          int(row[2]),
                          int(row[3])) for row in results]
-    conn.close()
+    db.close()
     return player_standings
 
 
@@ -105,42 +135,36 @@ def reportMatch(winner, loser):
       winner:  the id number of the player who won
       loser:  the id number of the player who lost
     """
-    conn = connect()
-    c = conn.cursor()
+    db, cursor = connect()
     # Passing the parameters to extract the winner and loser
     # from the player_standings VIEW in the database
-    c.execute("""SELECT * FROM player_standings
-                 WHERE (player_standings.id = %(id_winner)s
-                 OR player_standings.id = %(id_loser)s);""",
-              {'id_winner': int(winner), 'id_loser': int(loser)})
-    current_standings = c.fetchall()
+    query = """SELECT * FROM player_standings
+               WHERE (player_standings.id = %s
+               OR player_standings.id = %s);"""
+    parameter = (int(winner), int(loser))
+    cursor.execute(query, parameter)
+    current_standings = cursor.fetchall()
     # Keep track of which 'round' is played by taking into account
     # the current number of matches being played by that player
     current_round = current_standings[0][3] + 1
     # Insert the match result into the table 'matches'
-    c.execute("""INSERT INTO matches
-                             (id1, name1, id2,
-                             name2, round, winner, loser)
-                        VALUES
-                             (%(id1)s, %(name1)s, %(id2)s,
-                              %(name2)s, %(round)s, %(winner)s,
-                              %(loser)s);""",
-              {'id1': bleach.clean(int(current_standings[0][0]),
-                                   strip=True),
-               'name1': bleach.clean(str(current_standings[0][1]),
-                                     strip=True),
-               'id2': bleach.clean(int(current_standings[1][0]),
-                                   strip=True),
-               'name2': bleach.clean(str(current_standings[1][1]),
-                                     strip=True),
-               'round': bleach.clean(int(current_round),
-                                     strip=True),
-               'winner': bleach.clean(int(winner),
-                                      strip=True),
-               'loser': bleach.clean(int(loser),
-                                     strip=True)})
-    conn.commit()
-    conn.close()
+    id1 = bleach.clean(int(current_standings[0][0]), strip=True)
+    name1 = bleach.clean(str(current_standings[0][1]), strip=True)
+    id2 = bleach.clean(int(current_standings[1][0]), strip=True)
+    name2 = bleach.clean(str(current_standings[1][1]), strip=True)
+    round_nr = bleach.clean(int(current_round), strip=True)
+    winner = bleach.clean(int(winner), strip=True)
+    loser = bleach.clean(int(loser), strip=True)
+    # Query
+    query = """INSERT INTO matches
+                           (id1, name1, id2,
+                           name2, round, winner, loser)
+                      VALUES
+                           (%s, %s, %s,%s, %s, %s,%s);"""
+    parameter = (id1, name1, id2, name2, round_nr, winner, loser)
+    cursor.execute(query, parameter)
+    db.commit()
+    db.close()
 
 
 def reportSkipRound(player):
@@ -152,14 +176,14 @@ def reportSkipRound(player):
      Args:
          player: the id of the randomly selected player
     """
-    conn = connect()
-    c = conn.cursor()
+    db, cursor = connect()
     # Extracting the data of player that will skip the round
     # from the table 'player_standings'
-    c.execute("""SELECT * FROM player_standings
-                 WHERE player_standings.id = %(id_skip_player)s""",
-              {'id_skip_player': int(player)})
-    plr_standings = c.fetchall()
+    query = """SELECT * FROM player_standings
+                 WHERE player_standings.id = %s;"""
+    parameter = (player,)
+    cursor.execute(query, parameter)
+    plr_standings = cursor.fetchall()
     # Keep track of which 'round' is played by taking into account
     # the current number of matches being played by that player
     current_round = plr_standings[0][3] + 1
@@ -167,30 +191,25 @@ def reportSkipRound(player):
     #
     # The data of the player that will skip the round will be used
     # also for the remaining fields, to ensure database integrity
-    c.execute("""INSERT INTO matches
-                 (id1, name1, id2, name2,
-                 round, winner, loser, bye)
+    query = """INSERT INTO matches
+                     (id1, name1, id2, name2,
+                     round, winner, loser, bye)
                  VALUES
-                     (%(id1)s, %(name1)s, %(id2)s,
-                     %(name2)s, %(round)s, %(winner)s,
-                     %(loser)s, %(skip_round)s);""",
-              {'id1': bleach.clean(int(plr_standings[0][0]),
-                                   strip=True),
-               'name1': bleach.clean(str(plr_standings[0][1]),
-                                     strip=True),
-               'id2': bleach.clean(int(plr_standings[0][0]),
-                                   strip=True),
-               'name2': bleach.clean(str(plr_standings[0][1]),
-                                     strip=True),
-               'round': bleach.clean(int(current_round),
-                                     strip=True),
-               'winner': bleach.clean(int(player),
-                                      strip=True),
-               'loser': bleach.clean(int(player),
-                                      strip=True),
-               'skip_round': 1})
-    conn.commit()
-    conn.close()
+                     (%s, %s, %s, %s, %s, %s, %s, %s);"""
+    # Input sanitization of various parameters
+    id1 = bleach.clean(int(plr_standings[0][0]), strip=True)
+    name1 = bleach.clean(str(plr_standings[0][1]), strip=True)
+    id2 = bleach.clean(int(plr_standings[0][0]), strip=True)
+    name2 = bleach.clean(str(plr_standings[0][1]), strip=True)
+    round_nr = bleach.clean(int(current_round), strip=True)
+    winner = bleach.clean(int(player), strip=True)
+    loser = bleach.clean(int(player), strip=True)
+    skip_round = 1
+    # Assigning the parameters
+    parameter = (id1, name1, id2, name2, round_nr, winner, loser, skip_round)
+    cursor.execute(query, parameter)
+    db.commit()
+    db.close()
 
 
 def selectWhoSkipRound():
@@ -203,15 +222,16 @@ def selectWhoSkipRound():
 
     Returns: The player id that will skip that round
     """
-    conn = connect()
-    c = conn.cursor()
+    db, cursor = connect()
     # Select the players which skipped a round
     # from the 'matches_bye' VIEW
-    c.execute("""SELECT * FROM matches_bye;""")
-    skip_player_list = c.fetchall()
+    query = "SELECT * FROM matches_bye;"
+    cursor.execute(query)
+    skip_player_list = cursor.fetchall()
     # Select all the players from the player_standings VIEW
-    c.execute("""SELECT * FROM player_standings;""")
-    all_players = c.fetchall()
+    query = "SELECT * FROM player_standings;"
+    cursor.execute(query)
+    all_players = cursor.fetchall()
     # If the number of players is odd and it's the first round
     if countPlayers() % 2 != 0 and len(skip_player_list) == 0:
         # Randomly selects one of the player's id which will
@@ -223,9 +243,9 @@ def selectWhoSkipRound():
     elif countPlayers() % 2 != 0 and len(skip_player_list) != 0:
         # Select all the players from the player_standings VIEW
         # who have already won a match
-        c.execute("""SELECT * FROM player_standings
-                     WHERE wins >= 1;""")
-        all_players = c.fetchall()
+        query = "SELECT * FROM player_standings WHERE wins >= 1;"
+        cursor.execute(query)
+        all_players = cursor.fetchall()
         # Populate a filtered_players list that will be filtered
         # in order to remove players who have skipped a round
         filtered_players = [(int(row[0])) for row in all_players]
@@ -240,7 +260,7 @@ def selectWhoSkipRound():
         # players in the previously filtered list
         id_extra_player = random.choice([(int(player))
                                          for player in filtered_players])
-    conn.close()
+    db.close()
     return id_extra_player
 
 
@@ -268,8 +288,7 @@ def swissPairings():
         id2: the second player's unique id
         name2: the second player's name
     """
-    conn = connect()
-    c = conn.cursor()
+    db, cursor = connect()
     # Determine if the number of players is even or odd
     if countPlayers() % 2 == 0:
         # The number of registered players is even,
@@ -286,16 +305,16 @@ def swissPairings():
             top_group_nr = bottom_group_nr = countPlayers() / 2
         # Select the top half of the players present in the
         # player_standings VIEW by passing the parameter 'half_players_nr'
-        c.execute("""SELECT id,name FROM player_standings
-                     LIMIT (%(top_half)s);""",
-                  {'top_half': top_group_nr})
-        first_group = c.fetchall()
+        query = "SELECT id, name FROM player_standings LIMIT %s;"
+        parameter = (top_group_nr,)
+        cursor.execute(query, parameter)
+        first_group = cursor.fetchall()
         # Select the remaining bottom half of the players present in the
         # player_standings VIEW by passing the parameter 'half_players_nr'
-        c.execute("""SELECT id,name FROM player_standings
-                     OFFSET (%(bottom_half)s);""",
-                  {'bottom_half': bottom_group_nr})
-        second_group = c.fetchall()
+        query = "SELECT id, name FROM player_standings OFFSET %s;"
+        parameter = (bottom_group_nr,)
+        cursor.execute(query, parameter)
+        second_group = cursor.fetchall()
     else:
         # The number of registered players is odd,
         # therefore one player will receive a BYE flag
@@ -307,7 +326,7 @@ def swissPairings():
         # in order to have an even number of players in both groups
         if half_players_nr % 2 != 0:
             # Since one player will skip a round and it will receive
-            # a an automatic win, the top group will be reduced to
+            # an automatic win, the top group will be reduced to
             # equalise the players distribution
             top_group_nr = countPlayers() / 2 - 1
             bottom_group_nr = countPlayers() / 2 + 1
@@ -317,10 +336,10 @@ def swissPairings():
         id_extra_player = selectWhoSkipRound()
         # Select the players according to their standing but excluding
         # the player that will skip this round
-        c.execute("""SELECT id,name FROM player_standings
-                     WHERE id != (%(id_removed)s);""",
-                  {'id_removed': id_extra_player})
-        filtered_list = c.fetchall()
+        query = "SELECT id, name FROM player_standings WHERE id != %s;"
+        parameter = (id_extra_player,)
+        cursor.execute(query, parameter)
+        filtered_list = cursor.fetchall()
         # Assign this player a BYE flag for this round, as well as
         # an automatic win.
         reportSkipRound(id_extra_player)
@@ -344,11 +363,11 @@ def swissPairings():
     for i in range(1, bottom_group_nr / 2 + 1):
         second_pairs_matched.append(
                              tuple(id_second_group[(i-1)*2:(i*2):1]))
-
     # Select the matches that have already being played, excluding
     # the cases where a player skipped around
-    c.execute("""SELECT id1,id2 FROM matches WHERE bye = 0;""")
-    matches_played = c.fetchall()
+    query = "SELECT id1, id2 FROM matches WHERE bye = 0;"
+    cursor.execute(query)
+    matches_played = cursor.fetchall()
     # Define empty lists that will be used to prevent rematching
     # between players, and that will also be used to reconstruct the
     # final list of tuples:
@@ -379,17 +398,17 @@ def swissPairings():
     # if (i,j) and (k,l) are two matches and (k,l) is a rematch
     # then swap players j and k so that the new pairing is:
     # (i,k) and (j,l)
-    
+
     # Define the condition to interrupt the loop
     rematch_found = True
     # Check continuously the list of matches against the list of
     # matches already played
-    while rematch_found != False:
+    while rematch_found is not False:
         rematch_found = False
         for match in first_pairs_matched:
             p = match[0]
             q = match[1]
-            inverse = (q,p)
+            inverse = (q, p)
             if match in matches_played:
                 rematch_found = True
                 # Retrieve index of the match already played
@@ -431,7 +450,7 @@ def swissPairings():
                 match_item_f[j] = val_k
                 match_item_f[k] = val_j
 
-        if rematch_found == True:
+        if rematch_found is True:
             # Reconstruct the matches
             first_pairs_matched = []
             for i in range(1, top_group_nr / 2 + 1):
@@ -455,7 +474,6 @@ def swissPairings():
     for i in range(1, top_group_nr / 2 + 1):
         pairs_matched_first.append(
                             tuple(match_item_first[(i-1)*4:2*(i*2):1]))
-
     # Repeat the same steps described above for the
     # remaining players present in the second group
 
@@ -470,14 +488,14 @@ def swissPairings():
     rematch_found = True
     # Check continuously the list of matches against the list of
     # matches already played
-    while rematch_found != False:
+    while rematch_found is not False:
         rematch_found = False
         for match in second_pairs_matched:
             # Defining the inverse of 'match' by swapping the
             # player's id.
             p = match[0]
             q = match[1]
-            inverse = (q,p)
+            inverse = (q, p)
             # Check for a possible rematch
             if match in matches_played:
                 rematch_found = True
@@ -523,7 +541,7 @@ def swissPairings():
                 match_item_s[j] = val_k
                 match_item_s[k] = val_j
 
-        if rematch_found == True:
+        if rematch_found is True:
             # Reconstruct the matches list
             second_pairs_matched = []
             for i in range(1, bottom_group_nr / 2 + 1):
@@ -548,10 +566,8 @@ def swissPairings():
     for i in range(1, bottom_group_nr / 2 + 1):
         pairs_matched_second.append(
                              tuple(match_item_second[(i-1)*4:2*(i*2):1]))
-
     # Join the lists into the final list of tuples
     pairs_matched_first.extend(pairs_matched_second)
     pairs_matched.extend(pairs_matched_first)
-
-    conn.close()
+    db.close()
     return pairs_matched

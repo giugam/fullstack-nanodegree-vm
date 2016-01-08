@@ -1,5 +1,9 @@
 -- Table definitions for the tournament project.
---
+
+-- Project 2: Tournament results
+-- Author: Giulio Gambardella
+-- Date: 12.15.2015
+
 -- Put your SQL 'create table' statements in this file; also 'create view'
 -- statements if you choose to use it.
 --
@@ -139,3 +143,4 @@ CREATE VIEW rematches_check AS
 	FROM
 		matches 
 	GROUP BY id1, id2;
+

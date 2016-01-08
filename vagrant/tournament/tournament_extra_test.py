@@ -1,6 +1,34 @@
 #!/usr/bin/env python
 #
 # Test cases for tournament.py
+#
+# Title
+# -----
+# Project 2: Tournament result
+# Full Stack Web Developer Nanodegree - Udacity
+#
+# Project Description
+# -------------------
+# The project implement a swiss-system tournament between a number
+# of registered players. The tournament supports any number of players
+# (even or odd) and it's designed to prevent rematches between players.
+# This project does not include a front end.
+#
+# Module Specification
+# ---------------------
+# This module defines the test cases for tournament.py, specifically
+# to test a tournament with odd number of players (5, 7 and 9 players)
+# as well as a test for a tournament with 16 players.
+#
+# Author
+# ------
+# Giulio Gambardella
+#
+# Date
+# ----
+# 12.12.2015
+
+
 
 from tournament import *
 
@@ -16,11 +44,11 @@ def checkRematches():
         A list with the matches that appear more than
         once in the list
     """
-    conn = connect()
-    c = conn.cursor()
-    c.execute("""SELECT * FROM rematches_check
-                 WHERE counter > 1;""")
-    matches_list = c.fetchall()
+    db, cursor = connect()
+    query = "SELECT * FROM rematches_check WHERE counter > 1;"
+    cursor.execute(query)
+    matches_list = cursor.fetchall()
+    db.close()
     if matches_list:
         raise ValueError("A rematch has been found.")
     print "   OK. No rematches has been found."
